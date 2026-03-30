@@ -1,5 +1,5 @@
 """
-main.py — 8-bit CDAC behavioral model: simulation and analysis.
+__main__.py — 8-bit CDAC behavioral model: simulation and analysis.
 
 Parts
 -----
@@ -15,10 +15,9 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")           # headless backend (no display required)
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 
-from cdac_model import CDAC8bit
-from analysis import compute_fft_spectrum, compute_thd_sndr, compute_inl_dnl
+from cdac8bit.cdac_model import CDAC8bit
+from cdac8bit.analysis import compute_fft_spectrum, compute_thd_sndr, compute_inl_dnl
 
 # ---------------------------------------------------------------------------
 # Global simulation parameters
@@ -26,8 +25,10 @@ from analysis import compute_fft_spectrum, compute_thd_sndr, compute_inl_dnl
 
 VREF = 1.0          # Reference voltage (V)
 N_FFT = 4096        # FFT / simulation length (power-of-2 for efficiency)
-M_CYCLES = 29       # Number of input sine cycles in N_FFT points
-                    # 29 is prime → coherent sampling, no spectral leakage
+M_CYCLES = 29       # Number of input sine cycles in N_FFT points.
+                    # 29 is prime → gcd(29, 4096) = 1 (coprime), so the
+                    # signal frequency lands exactly on a single FFT bin
+                    # with no spectral leakage (coherent sampling).
 N_HARMONICS = 9     # Harmonics included in THD calculation
 
 MISMATCH_SIGMA = 0.01   # 1 % relative capacitor mismatch (σ)
@@ -65,7 +66,7 @@ def part_a(dac_ideal: CDAC8bit, codes: np.ndarray) -> dict:
     vout = dac_ideal.convert(codes)
 
     result = compute_thd_sndr(vout, VREF, fin_bin=M_CYCLES,
-                               n_harmonics=N_HARMONICS, window=True)
+                               n_harmonics=N_HARMONICS, window=False)
     spec = result['spectrum']
 
     print("=" * 60)
@@ -114,7 +115,7 @@ def part_b(dac_mismatch: CDAC8bit, codes: np.ndarray) -> dict:
     vout = dac_mismatch.convert(codes)
 
     result = compute_thd_sndr(vout, VREF, fin_bin=M_CYCLES,
-                               n_harmonics=N_HARMONICS, window=True)
+                               n_harmonics=N_HARMONICS, window=False)
     spec = result['spectrum']
 
     print()
@@ -209,12 +210,10 @@ def part_c(dac_ideal: CDAC8bit) -> dict:
     print(f"  Peak |INL|       : {result['inl_max']:.4f} LSB")
 
     # --- Voltage Transfer Curve (VTC) ---
-    fig = plt.figure(figsize=(10, 9))
-    gs = gridspec.GridSpec(3, 1, figure=fig, hspace=0.45)
-
-    ax_vtc = fig.add_subplot(gs[0])
-    ax_dnl = fig.add_subplot(gs[1])
-    ax_inl = fig.add_subplot(gs[2])
+    fig, (ax_vtc, ax_dnl, ax_inl) = plt.subplots(
+        3, 1, figsize=(10, 9), constrained_layout=True
+    )
+    fig.suptitle("Part c)  Ideal 8-bit CDAC — Ramp Input Analysis")
 
     # VTC
     ideal_vout = codes_ramp * lsb   # ideal staircase
@@ -251,10 +250,8 @@ def part_c(dac_ideal: CDAC8bit) -> dict:
     ax_inl.legend(fontsize=8)
     ax_inl.grid(True, lw=0.3)
 
-    fig.suptitle("Part c)  Ideal 8-bit CDAC — Ramp Input Analysis", y=1.01)
-    fig.tight_layout()
     path = os.path.join(RESULTS_DIR, "part_c_vtc_inl_dnl.png")
-    fig.savefig(path, dpi=150, bbox_inches='tight')
+    fig.savefig(path, dpi=150)
     plt.close(fig)
     print(f"  → Saved: {path}")
 

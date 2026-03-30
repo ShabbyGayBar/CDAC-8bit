@@ -38,7 +38,7 @@ def compute_fft_spectrum(vout: np.ndarray, vref: float,
     """
     N = len(vout)
     if window:
-        w = np.hanning(N)
+        w = np.hanning(N)   # Hann window (reduces spectral leakage)
         cg = np.mean(w)        # coherent gain
         vout_w = vout * w
     else:
