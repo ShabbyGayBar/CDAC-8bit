@@ -3,9 +3,10 @@ __main__.py — 8-bit CDAC behavioral model: simulation and analysis.
 
 Parts
 -----
-a) Ideal CDAC, sinusoidal input  → FFT spectrum + THD / SNDR
-b) Mismatched CDAC, same input   → FFT spectrum + THD / SNDR (comparison)
-c) Ideal CDAC, ramp input        → Voltage Transfer Curve + INL / DNL
+a) Ideal CDAC, sinusoidal input     → FFT spectrum + THD / SNDR
+b) Mismatched CDAC, same input      → FFT spectrum + THD / SNDR (comparison)
+c) Ideal CDAC, ramp input           → Voltage Transfer Curve + INL / DNL
+c) Mismatched CDAC, ramp input      → Voltage Transfer Curve + INL / DNL (comparison)
 
 All plots are saved to the  results/  directory.
 """
@@ -190,20 +191,37 @@ def part_b_comparison(result_ideal: dict, result_mismatch: dict) -> None:
     print(f"  → Saved: {path}")
 
 # ---------------------------------------------------------------------------
-# Part c) Ideal DAC — ramp input, VTC + INL/DNL
+# Part c) Ramp input — VTC + INL/DNL (works for any DAC instance)
 # ---------------------------------------------------------------------------
 
-def part_c(dac_ideal: CDAC8bit) -> dict:
-    """Analyse ideal DAC with ramp input: VTC, INL, DNL."""
+def part_c(dac: CDAC8bit, label: str, filename: str) -> dict:
+    """Analyse *dac* with a ramp input: VTC, INL, DNL.
+
+    Parameters
+    ----------
+    dac : CDAC8bit
+        DAC instance to evaluate (ideal or mismatched).
+    label : str
+        Human-readable label used in plot titles and console output.
+    filename : str
+        Output PNG filename (without directory prefix).
+
+    Returns
+    -------
+    dict
+        Result from :func:`~cdac8bit.analysis.compute_inl_dnl` with keys:
+        ``'codes'``, ``'dnl'``, ``'inl'``, ``'dnl_max'``, ``'inl_max'``,
+        ``'lsb_ideal'``, ``'vtc'``.
+    """
     codes_ramp = np.arange(CDAC8bit.N_CODES)          # 0 … 255
-    vout_ramp = dac_ideal.convert(codes_ramp)
+    vout_ramp = dac.convert(codes_ramp)
 
     result = compute_inl_dnl(vout_ramp, VREF)
     lsb = result['lsb_ideal']
 
     print()
     print("=" * 60)
-    print("Part c)  Ideal 8-bit CDAC — ramp input (VTC, INL, DNL)")
+    print(f"Part c)  {label} — ramp input (VTC, INL, DNL)")
     print("=" * 60)
     print(f"  Ideal LSB        : {lsb*1e3:.4f} mV  ({lsb/VREF*100:.4f} % of Vref)")
     print(f"  Peak |DNL|       : {result['dnl_max']:.4f} LSB")
@@ -213,7 +231,7 @@ def part_c(dac_ideal: CDAC8bit) -> dict:
     fig, (ax_vtc, ax_dnl, ax_inl) = plt.subplots(
         3, 1, figsize=(10, 9), constrained_layout=True
     )
-    fig.suptitle("Part c)  Ideal 8-bit CDAC — Ramp Input Analysis")
+    fig.suptitle(f"Part c)  {label} — Ramp Input Analysis")
 
     # VTC
     ideal_vout = codes_ramp * lsb   # ideal staircase
@@ -250,12 +268,84 @@ def part_c(dac_ideal: CDAC8bit) -> dict:
     ax_inl.legend(fontsize=8)
     ax_inl.grid(True, lw=0.3)
 
-    path = os.path.join(RESULTS_DIR, "part_c_vtc_inl_dnl.png")
+    path = os.path.join(RESULTS_DIR, filename)
     fig.savefig(path, dpi=150)
     plt.close(fig)
     print(f"  → Saved: {path}")
 
     return result
+
+
+def part_c_comparison(result_ideal: dict, result_mismatch: dict) -> None:
+    """Side-by-side VTC / DNL / INL comparison: ideal vs mismatched DAC.
+
+    Parameters
+    ----------
+    result_ideal : dict
+        Return value of :func:`part_c` for the ideal DAC.  Expected keys:
+        ``'codes'``, ``'vtc'``, ``'dnl'``, ``'inl'``,
+        ``'dnl_max'``, ``'inl_max'``, ``'lsb_ideal'``.
+    result_mismatch : dict
+        Return value of :func:`part_c` for the mismatched DAC (same keys).
+    """
+    codes = result_ideal['codes']
+    lsb = result_ideal['lsb_ideal']
+    ideal_vout = codes * lsb
+
+    fig, axes = plt.subplots(
+        3, 2, figsize=(14, 10), constrained_layout=True, sharey='row'
+    )
+    fig.suptitle(
+        f"Part c)  Ramp Analysis — Ideal vs Mismatched CDAC  (σ = {MISMATCH_SIGMA*100:.1f} %)"
+    )
+
+    datasets = [
+        ("Ideal CDAC", result_ideal, "steelblue", "darkorange", "purple"),
+        (f"Mismatched CDAC  (σ = {MISMATCH_SIGMA*100:.1f} %)",
+         result_mismatch, "steelblue", "darkorange", "purple"),
+    ]
+
+    for col, (label, res, c_vtc, c_dnl, c_inl) in enumerate(datasets):
+        ax_vtc, ax_dnl, ax_inl = axes[0, col], axes[1, col], axes[2, col]
+        vtc = res['vtc']
+
+        # VTC
+        ax_vtc.step(codes, vtc * 1e3, where='post', color=c_vtc,
+                    lw=1.0, label='CDAC output')
+        ax_vtc.plot(codes, ideal_vout * 1e3, color='tomato', lw=0.8,
+                    ls='--', label='Ideal line')
+        ax_vtc.set_xlabel("Digital code")
+        ax_vtc.set_ylabel("Output voltage (mV)")
+        ax_vtc.set_title(f"VTC — {label}")
+        ax_vtc.legend(fontsize=7)
+        ax_vtc.grid(True, lw=0.3)
+
+        # DNL
+        ax_dnl.step(codes[:-1], res['dnl'], where='post', color=c_dnl, lw=0.8)
+        ax_dnl.axhline(0, color='k', lw=0.5)
+        ax_dnl.axhline(1, color='tomato', lw=0.6, ls='--', label='+1 LSB')
+        ax_dnl.axhline(-1, color='tomato', lw=0.6, ls='--', label='−1 LSB')
+        ax_dnl.set_xlabel("Digital code")
+        ax_dnl.set_ylabel("DNL (LSB)")
+        ax_dnl.set_title(f"DNL — peak = {res['dnl_max']:.4f} LSB")
+        ax_dnl.legend(fontsize=7)
+        ax_dnl.grid(True, lw=0.3)
+
+        # INL
+        ax_inl.plot(codes, res['inl'], color=c_inl, lw=0.8)
+        ax_inl.axhline(0, color='k', lw=0.5)
+        ax_inl.axhline(0.5, color='tomato', lw=0.6, ls='--', label='±0.5 LSB')
+        ax_inl.axhline(-0.5, color='tomato', lw=0.6, ls='--')
+        ax_inl.set_xlabel("Digital code")
+        ax_inl.set_ylabel("INL (LSB)")
+        ax_inl.set_title(f"INL — peak = {res['inl_max']:.4f} LSB")
+        ax_inl.legend(fontsize=7)
+        ax_inl.grid(True, lw=0.3)
+
+    path = os.path.join(RESULTS_DIR, "part_c_comparison.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    print(f"  → Saved: {path}")
 
 # ---------------------------------------------------------------------------
 # Entry point
@@ -286,7 +376,14 @@ def main() -> None:
     print()
     part_b_comparison(result_a, result_b)
 
-    part_c(dac_ideal)
+    result_c_ideal = part_c(dac_ideal, "Ideal 8-bit CDAC", "part_c_ideal_vtc_inl_dnl.png")
+    result_c_mismatch = part_c(
+        dac_mismatch,
+        f"Mismatched CDAC  (σ = {MISMATCH_SIGMA*100:.1f} %)",
+        "part_c_mismatch_vtc_inl_dnl.png",
+    )
+    print()
+    part_c_comparison(result_c_ideal, result_c_mismatch)
 
     print()
     print("All results saved to:", os.path.abspath(RESULTS_DIR))
