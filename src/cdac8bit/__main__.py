@@ -16,6 +16,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")           # headless backend (no display required)
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
 from cdac8bit.cdac_model import CDAC8bit
 from cdac8bit.analysis import compute_fft_spectrum, compute_thd_sndr, compute_inl_dnl
@@ -27,9 +28,9 @@ from cdac8bit.analysis import compute_fft_spectrum, compute_thd_sndr, compute_in
 VREF = 1.0          # Reference voltage (V)
 N_FFT = 4096        # FFT / simulation length (power-of-2 for efficiency)
 M_CYCLES = 29       # Number of input sine cycles in N_FFT points.
-                    # 29 is prime → gcd(29, 4096) = 1 (coprime), so the
-                    # signal frequency lands exactly on a single FFT bin
-                    # with no spectral leakage (coherent sampling).
+# 29 is prime → gcd(29, 4096) = 1 (coprime), so the
+# signal frequency lands exactly on a single FFT bin
+# with no spectral leakage (coherent sampling).
 N_HARMONICS = 9     # Harmonics included in THD calculation
 
 MISMATCH_SIGMA = 0.01   # 1 % relative capacitor mismatch (σ)
@@ -88,7 +89,7 @@ def part_a(dac_ideal: CDAC8bit, codes: np.ndarray) -> dict:
         ax.axvline(hb / N_FFT, color='orange', lw=0.6, ls=':')
 
     ax.set_xlim(0, 0.5)
-    ax.set_ylim(-160, 10)
+    ax.set_ylim(-100, 10)
     ax.set_xlabel("Normalised frequency  (× f_s)")
     ax.set_ylabel("Amplitude (dBFS)")
     ax.set_title(
@@ -138,7 +139,7 @@ def part_b(dac_mismatch: CDAC8bit, codes: np.ndarray) -> dict:
         ax.axvline(hb / N_FFT, color='purple', lw=0.6, ls=':')
 
     ax.set_xlim(0, 0.5)
-    ax.set_ylim(-160, 10)
+    ax.set_ylim(-100, 10)
     ax.set_xlabel("Normalised frequency  (× f_s)")
     ax.set_ylabel("Amplitude (dBFS)")
     ax.set_title(
@@ -183,7 +184,7 @@ def part_b_overlay(result_ideal: dict, result_mismatch: dict) -> None:
                label=f'f_in = {M_CYCLES}/{N_FFT}')
 
     ax.set_xlim(0, 0.5)
-    ax.set_ylim(-160, 10)
+    ax.set_ylim(-100, 10)
     ax.set_xlabel("Normalised frequency  (× f_s)")
     ax.set_ylabel("Amplitude (dBFS)")
     ax.set_title("Part b)  FFT Spectrum Overlay — Ideal vs Mismatched CDAC")
@@ -200,43 +201,89 @@ def part_b_overlay(result_ideal: dict, result_mismatch: dict) -> None:
 # Part c) Ramp input — VTC + INL/DNL (works for any DAC instance)
 # ---------------------------------------------------------------------------
 
-_VTC_ZOOM_LO = 90   # first code shown in the VTC inset
-_VTC_ZOOM_HI = 110  # last  code shown in the VTC inset (inclusive)
+_VTC_ZOOM_LO = 140   # first code shown in the VTC inset
+_VTC_ZOOM_HI = 150  # last  code shown in the VTC inset (inclusive)
 
 
 def _add_vtc_inset(ax_vtc, codes, lsb, *step_series):
-    """Add a zoomed-in inset of the VTC (codes 90–110) to *ax_vtc*.
-
-    Parameters
-    ----------
-    ax_vtc : matplotlib.axes.Axes
-        The parent VTC axes.
-    codes : array-like
-        Full array of digital codes (0–255).
-    lsb : float
-        Ideal LSB size in volts (used to draw the ideal reference line).
-    *step_series : sequence of (y_mV, color, lw, alpha, label) tuples
-        Each tuple describes one ``ax.step(where='post')`` series to draw
-        in the inset (values already in **mV**).
     """
+    Add a zoomed-in inset of the VTC and visually link it to the zoom region
+    on the main curve using a bounding box and arrow annotation.
+    """
+
+    # --- Zoom region (codes) ---
     mask = (codes >= _VTC_ZOOM_LO) & (codes <= _VTC_ZOOM_HI)
     codes_zoom = codes[mask]
-    ideal_zoom = codes_zoom * lsb * 1e3          # mV
+    ideal_zoom = codes_zoom * lsb * 1e3  # mV
 
-    # Inset positioned at the lower-right of the parent axes
-    ax_ins = ax_vtc.inset_axes([0.62, 0.04, 0.35, 0.38])
+    # --- Compute y-limits for the bounding box ---
+    y_all = []
+    for y_mV, *_ in step_series:
+        y_all.append(y_mV[mask])
+    y_all = np.concatenate(y_all)
+
+    y_min = y_all.min()
+    y_max = y_all.max()
+    y_pad = 0.05 * (y_max - y_min)
+
+    # --- Draw bounding box on parent VTC ---
+    zoom_box = Rectangle(
+        (_VTC_ZOOM_LO, y_min - y_pad),
+        _VTC_ZOOM_HI - _VTC_ZOOM_LO,
+        (y_max - y_min) + 2 * y_pad,
+        edgecolor="black",
+        facecolor="none",
+        lw=1.0,
+        linestyle="--",
+        zorder=3,
+    )
+    ax_vtc.add_patch(zoom_box)
+
+    # --- Create inset axes ---
+    ax_ins = ax_vtc.inset_axes([0.7, 0.15, 0.2, 0.5])
 
     for y_mV, color, lw, alpha, _label in step_series:
-        ax_ins.step(codes_zoom, y_mV[mask], where='post',
-                    color=color, lw=lw, alpha=alpha)
-    ax_ins.plot(codes_zoom, ideal_zoom, color='tomato', lw=0.8, ls='--')
+        ax_ins.step(
+            codes_zoom,
+            y_mV[mask],
+            where="post",
+            color=color,
+            lw=lw,
+            alpha=alpha,
+        )
+
+    ax_ins.plot(
+        codes_zoom,
+        ideal_zoom,
+        color="tomato",
+        lw=0.8,
+        ls="--",
+        label="Ideal",
+    )
 
     ax_ins.set_xlim(_VTC_ZOOM_LO, _VTC_ZOOM_HI)
     ax_ins.set_xlabel("Code", fontsize=6)
     ax_ins.set_ylabel("mV", fontsize=6)
-    ax_ins.set_title(f"Zoom  {_VTC_ZOOM_LO}–{_VTC_ZOOM_HI}", fontsize=6)
     ax_ins.tick_params(labelsize=5)
-    ax_ins.grid(True, lw=0.2)
+    ax_ins.grid(True, lw=0.25)
+
+    # --- Arrow linking zoom box to inset ---
+    ax_vtc.annotate(
+        "",
+        xy=(0.65, 0.4),
+        xycoords=ax_vtc.transAxes,  # inset anchor
+        xytext=(
+            (_VTC_ZOOM_LO + _VTC_ZOOM_HI) / 2,
+            y_max + y_pad,
+        ),
+        textcoords="data",
+        arrowprops=dict(
+            arrowstyle="->",
+            lw=0.8,
+            color="black",
+        ),
+    )
+
 
 def part_c(dac: CDAC8bit, label: str, filename: str) -> dict:
     """Analyse *dac* with a ramp input: VTC, INL, DNL.
