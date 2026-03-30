@@ -200,6 +200,44 @@ def part_b_overlay(result_ideal: dict, result_mismatch: dict) -> None:
 # Part c) Ramp input — VTC + INL/DNL (works for any DAC instance)
 # ---------------------------------------------------------------------------
 
+_VTC_ZOOM_LO = 90   # first code shown in the VTC inset
+_VTC_ZOOM_HI = 110  # last  code shown in the VTC inset (inclusive)
+
+
+def _add_vtc_inset(ax_vtc, codes, lsb, *step_series):
+    """Add a zoomed-in inset of the VTC (codes 90–110) to *ax_vtc*.
+
+    Parameters
+    ----------
+    ax_vtc : matplotlib.axes.Axes
+        The parent VTC axes.
+    codes : array-like
+        Full array of digital codes (0–255).
+    lsb : float
+        Ideal LSB size in volts (used to draw the ideal reference line).
+    *step_series : sequence of (y_mV, color, lw, alpha, label) tuples
+        Each tuple describes one ``ax.step(where='post')`` series to draw
+        in the inset (values already in **mV**).
+    """
+    mask = (codes >= _VTC_ZOOM_LO) & (codes <= _VTC_ZOOM_HI)
+    codes_zoom = codes[mask]
+    ideal_zoom = codes_zoom * lsb * 1e3          # mV
+
+    # Inset positioned at the lower-right of the parent axes
+    ax_ins = ax_vtc.inset_axes([0.62, 0.04, 0.35, 0.38])
+
+    for y_mV, color, lw, alpha, _label in step_series:
+        ax_ins.step(codes_zoom, y_mV[mask], where='post',
+                    color=color, lw=lw, alpha=alpha)
+    ax_ins.plot(codes_zoom, ideal_zoom, color='tomato', lw=0.8, ls='--')
+
+    ax_ins.set_xlim(_VTC_ZOOM_LO, _VTC_ZOOM_HI)
+    ax_ins.set_xlabel("Code", fontsize=6)
+    ax_ins.set_ylabel("mV", fontsize=6)
+    ax_ins.set_title(f"Zoom  {_VTC_ZOOM_LO}–{_VTC_ZOOM_HI}", fontsize=6)
+    ax_ins.tick_params(labelsize=5)
+    ax_ins.grid(True, lw=0.2)
+
 def part_c(dac: CDAC8bit, label: str, filename: str) -> dict:
     """Analyse *dac* with a ramp input: VTC, INL, DNL.
 
@@ -249,6 +287,8 @@ def part_c(dac: CDAC8bit, label: str, filename: str) -> dict:
     ax_vtc.set_title("Voltage Transfer Curve (VTC)")
     ax_vtc.legend(fontsize=8)
     ax_vtc.grid(True, lw=0.3)
+    _add_vtc_inset(ax_vtc, codes_ramp, lsb,
+                   (vout_ramp * 1e3, 'steelblue', 1.0, 1.0, 'CDAC output'))
 
     # DNL
     ax_dnl.step(codes_ramp[:-1], result['dnl'], where='post',
@@ -314,6 +354,9 @@ def part_c_overlay(result_ideal: dict, result_mismatch: dict) -> None:
     ax_vtc.set_title("Voltage Transfer Curve (VTC)")
     ax_vtc.legend(fontsize=8)
     ax_vtc.grid(True, lw=0.3)
+    _add_vtc_inset(ax_vtc, codes, lsb,
+                   (result_ideal['vtc'] * 1e3,    'steelblue',  1.0, 0.85, 'Ideal'),
+                   (result_mismatch['vtc'] * 1e3, 'darkorange', 1.0, 0.85, 'Mismatch'))
 
     # DNL
     ax_dnl.step(codes[:-1], result_ideal['dnl'], where='post',
