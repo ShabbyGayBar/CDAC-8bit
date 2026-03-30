@@ -3,10 +3,10 @@ __main__.py — 8-bit CDAC behavioral model: simulation and analysis.
 
 Parts
 -----
-a) Ideal CDAC, sinusoidal input     → FFT spectrum + THD / SNDR
-b) Mismatched CDAC, same input      → FFT spectrum + THD / SNDR (comparison)
-c) Ideal CDAC, ramp input           → Voltage Transfer Curve + INL / DNL
-c) Mismatched CDAC, ramp input      → Voltage Transfer Curve + INL / DNL (comparison)
+a) Ideal CDAC, sinusoidal input        → FFT spectrum + THD / SNDR
+b) Mismatched CDAC, same input         → FFT spectrum + THD / SNDR (comparison + overlay)
+c) Ideal & Mismatched CDAC, ramp input → Voltage Transfer Curve + INL / DNL (individual,
+                                          side-by-side comparison, and overlay)
 
 All plots are saved to the  results/  directory.
 """
@@ -190,6 +190,45 @@ def part_b_comparison(result_ideal: dict, result_mismatch: dict) -> None:
     plt.close(fig)
     print(f"  → Saved: {path}")
 
+
+def part_b_overlay(result_ideal: dict, result_mismatch: dict) -> None:
+    """Overlay ideal and mismatched FFT spectra on the same axes.
+
+    Parameters
+    ----------
+    result_ideal : dict
+        Return value of :func:`part_a` (ideal DAC sinusoidal result).
+    result_mismatch : dict
+        Return value of :func:`part_b` (mismatched DAC sinusoidal result).
+    """
+    spec_ideal    = result_ideal['spectrum']
+    spec_mismatch = result_mismatch['spectrum']
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+
+    ax.plot(spec_ideal['freqs'], spec_ideal['magnitude_dbfs'],
+            lw=0.8, color='steelblue', alpha=0.85,
+            label=f"Ideal   — SNDR {result_ideal['sndr_db']:.1f} dB, ENOB {result_ideal['enob']:.2f}")
+    ax.plot(spec_mismatch['freqs'], spec_mismatch['magnitude_dbfs'],
+            lw=0.8, color='darkorange', alpha=0.85,
+            label=f"Mismatch (σ={MISMATCH_SIGMA*100:.1f} %) — SNDR {result_mismatch['sndr_db']:.1f} dB, ENOB {result_mismatch['enob']:.2f}")
+    ax.axvline(M_CYCLES / N_FFT, color='tomato', lw=0.8, ls='--',
+               label=f'f_in = {M_CYCLES}/{N_FFT}')
+
+    ax.set_xlim(0, 0.5)
+    ax.set_ylim(-160, 10)
+    ax.set_xlabel("Normalised frequency  (× f_s)")
+    ax.set_ylabel("Amplitude (dBFS)")
+    ax.set_title("Part b)  FFT Spectrum Overlay — Ideal vs Mismatched CDAC")
+    ax.legend(fontsize=8)
+    ax.grid(True, which='both', lw=0.3)
+    fig.tight_layout()
+
+    path = os.path.join(RESULTS_DIR, "part_b_overlay.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    print(f"  → Saved: {path}")
+
 # ---------------------------------------------------------------------------
 # Part c) Ramp input — VTC + INL/DNL (works for any DAC instance)
 # ---------------------------------------------------------------------------
@@ -347,6 +386,80 @@ def part_c_comparison(result_ideal: dict, result_mismatch: dict) -> None:
     plt.close(fig)
     print(f"  → Saved: {path}")
 
+
+def part_c_overlay(result_ideal: dict, result_mismatch: dict) -> None:
+    """Overlay ideal and mismatched VTC / DNL / INL curves on the same axes.
+
+    Parameters
+    ----------
+    result_ideal : dict
+        Return value of :func:`part_c` for the ideal DAC.  Expected keys:
+        ``'codes'``, ``'vtc'``, ``'dnl'``, ``'inl'``,
+        ``'dnl_max'``, ``'inl_max'``, ``'lsb_ideal'``.
+    result_mismatch : dict
+        Return value of :func:`part_c` for the mismatched DAC (same keys).
+    """
+    codes = result_ideal['codes']
+    lsb   = result_ideal['lsb_ideal']
+    ideal_vout = codes * lsb
+
+    fig, (ax_vtc, ax_dnl, ax_inl) = plt.subplots(
+        3, 1, figsize=(10, 9), constrained_layout=True
+    )
+    fig.suptitle(
+        f"Part c)  Ramp Analysis Overlay — Ideal vs Mismatched CDAC\n"
+        f"(σ = {MISMATCH_SIGMA*100:.1f} %)"
+    )
+
+    # VTC
+    ax_vtc.step(codes, result_ideal['vtc'] * 1e3, where='post',
+                color='steelblue', lw=1.0, alpha=0.85, label='Ideal CDAC output')
+    ax_vtc.step(codes, result_mismatch['vtc'] * 1e3, where='post',
+                color='darkorange', lw=1.0, alpha=0.85,
+                label=f'Mismatched CDAC  (σ={MISMATCH_SIGMA*100:.1f} %)')
+    ax_vtc.plot(codes, ideal_vout * 1e3, color='tomato', lw=0.8,
+                ls='--', label='Ideal reference line')
+    ax_vtc.set_xlabel("Digital code")
+    ax_vtc.set_ylabel("Output voltage (mV)")
+    ax_vtc.set_title("Voltage Transfer Curve (VTC)")
+    ax_vtc.legend(fontsize=8)
+    ax_vtc.grid(True, lw=0.3)
+
+    # DNL
+    ax_dnl.step(codes[:-1], result_ideal['dnl'], where='post',
+                color='steelblue', lw=0.8, alpha=0.85,
+                label=f"Ideal   (peak {result_ideal['dnl_max']:.4f} LSB)")
+    ax_dnl.step(codes[:-1], result_mismatch['dnl'], where='post',
+                color='darkorange', lw=0.8, alpha=0.85,
+                label=f"Mismatch (peak {result_mismatch['dnl_max']:.4f} LSB)")
+    ax_dnl.axhline(0, color='k', lw=0.5)
+    ax_dnl.axhline(1, color='tomato', lw=0.6, ls='--', label='+1 LSB')
+    ax_dnl.axhline(-1, color='tomato', lw=0.6, ls='--', label='−1 LSB')
+    ax_dnl.set_xlabel("Digital code")
+    ax_dnl.set_ylabel("DNL (LSB)")
+    ax_dnl.set_title("Differential Non-Linearity (DNL) — Overlay")
+    ax_dnl.legend(fontsize=8)
+    ax_dnl.grid(True, lw=0.3)
+
+    # INL
+    ax_inl.plot(codes, result_ideal['inl'], color='steelblue', lw=0.8, alpha=0.85,
+                label=f"Ideal   (peak {result_ideal['inl_max']:.4f} LSB)")
+    ax_inl.plot(codes, result_mismatch['inl'], color='darkorange', lw=0.8, alpha=0.85,
+                label=f"Mismatch (peak {result_mismatch['inl_max']:.4f} LSB)")
+    ax_inl.axhline(0, color='k', lw=0.5)
+    ax_inl.axhline(0.5, color='tomato', lw=0.6, ls='--', label='±0.5 LSB')
+    ax_inl.axhline(-0.5, color='tomato', lw=0.6, ls='--')
+    ax_inl.set_xlabel("Digital code")
+    ax_inl.set_ylabel("INL (LSB)")
+    ax_inl.set_title("Integral Non-Linearity (INL) — Overlay")
+    ax_inl.legend(fontsize=8)
+    ax_inl.grid(True, lw=0.3)
+
+    path = os.path.join(RESULTS_DIR, "part_c_overlay.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    print(f"  → Saved: {path}")
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -375,6 +488,7 @@ def main() -> None:
 
     print()
     part_b_comparison(result_a, result_b)
+    part_b_overlay(result_a, result_b)
 
     result_c_ideal = part_c(dac_ideal, "Ideal 8-bit CDAC", "part_c_ideal_vtc_inl_dnl.png")
     result_c_mismatch = part_c(
@@ -384,6 +498,7 @@ def main() -> None:
     )
     print()
     part_c_comparison(result_c_ideal, result_c_mismatch)
+    part_c_overlay(result_c_ideal, result_c_mismatch)
 
     print()
     print("All results saved to:", os.path.abspath(RESULTS_DIR))
