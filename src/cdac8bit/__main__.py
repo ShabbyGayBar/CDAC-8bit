@@ -173,12 +173,12 @@ def part_b_overlay(result_ideal: dict, result_mismatch: dict) -> None:
 
     fig, ax = plt.subplots(figsize=(10, 4))
 
-    ax.plot(spec_ideal['freqs'], spec_ideal['magnitude_dbfs'],
-            lw=0.8, color='steelblue', alpha=0.85,
-            label=f"Ideal   — SNDR {result_ideal['sndr_db']:.1f} dB, ENOB {result_ideal['enob']:.2f}")
     ax.plot(spec_mismatch['freqs'], spec_mismatch['magnitude_dbfs'],
             lw=0.8, color='darkorange', alpha=0.85,
             label=f"Mismatch (σ={MISMATCH_SIGMA*100:.1f} %) — SNDR {result_mismatch['sndr_db']:.1f} dB, ENOB {result_mismatch['enob']:.2f}")
+    ax.plot(spec_ideal['freqs'], spec_ideal['magnitude_dbfs'],
+            lw=0.8, color='steelblue', alpha=0.85,
+            label=f"Ideal — SNDR {result_ideal['sndr_db']:.1f} dB, ENOB {result_ideal['enob']:.2f}")
     ax.axvline(M_CYCLES / N_FFT, color='tomato', lw=0.8, ls='--',
                label=f'f_in = {M_CYCLES}/{N_FFT}')
 
