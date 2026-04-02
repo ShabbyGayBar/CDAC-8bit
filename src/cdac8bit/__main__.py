@@ -346,13 +346,13 @@ def part_c_plot(result_ideal: dict, result_mismatch: dict) -> None:
                 ls='--', label='Ideal reference line')
     ax_vtc.set_xlabel("Digital code")
     ax_vtc.set_ylabel("Output voltage (mV)")
-    ax_vtc.set_title("Voltage Transfer Curve (VTC)")
     ax_vtc.legend(fontsize=8)
     ax_vtc.grid(True, lw=0.3)
     _add_vtc_inset(ax_vtc, codes, lsb,
                    (result_ideal['vtc'] * 1e3,    'steelblue',  1.0, 0.85, 'Ideal'),
                    (result_mismatch['vtc'] * 1e3, 'darkorange', 1.0, 0.85, 'Mismatch'))
 
+    fig.tight_layout()
     path = os.path.join(RESULTS_DIR, "part_c_vtc.svg")
     fig.savefig(path)
     plt.close(fig)
@@ -371,6 +371,7 @@ def part_c_plot(result_ideal: dict, result_mismatch: dict) -> None:
     ax_dnl.legend(fontsize=8)
     ax_dnl.grid(True, lw=0.3)
 
+    fig.tight_layout()
     path = os.path.join(RESULTS_DIR, "part_c_dnl.svg")
     fig.savefig(path)
     plt.close(fig)
@@ -385,9 +386,9 @@ def part_c_plot(result_ideal: dict, result_mismatch: dict) -> None:
     ax_inl.axhline(-0.5, color='tomato', lw=0.6, ls='--')
     ax_inl.set_xlabel("Digital code")
     ax_inl.set_ylabel("INL (LSB)")
-    ax_inl.set_title("Integral Non-Linearity (INL) — Overlay")
     ax_inl.legend(fontsize=8)
     ax_inl.grid(True, lw=0.3)
+    fig.tight_layout()
 
     path = os.path.join(RESULTS_DIR, "part_c_inl.svg")
     fig.savefig(path)
