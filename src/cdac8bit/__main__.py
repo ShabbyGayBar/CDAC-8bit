@@ -14,7 +14,8 @@ All plots are saved as SVG files to the  results/  directory.
 import os
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")           # headless backend (no display required)
+
+matplotlib.use("Agg")  # headless backend (no display required)
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
@@ -25,16 +26,16 @@ from cdac8bit.analysis import compute_fft_spectrum, compute_thd_sndr, compute_in
 # Global simulation parameters
 # ---------------------------------------------------------------------------
 
-VREF = 1.0          # Reference voltage (V)
-N_FFT = 4096        # FFT / simulation length (power-of-2 for efficiency)
-M_CYCLES = 29       # Number of input sine cycles in N_FFT points.
+VREF = 1.0  # Reference voltage (V)
+N_FFT = 4096  # FFT / simulation length (power-of-2 for efficiency)
+M_CYCLES = 29  # Number of input sine cycles in N_FFT points.
 # 29 is prime → gcd(29, 4096) = 1 (coprime), so the
 # signal frequency lands exactly on a single FFT bin
 # with no spectral leakage (coherent sampling).
-N_HARMONICS = 9     # Harmonics included in THD calculation
+N_HARMONICS = 9  # Harmonics included in THD calculation
 
-MISMATCH_SIGMA = 0.01   # 1 % relative capacitor mismatch (σ)
-MISMATCH_SEED = 42      # Fixed seed for reproducibility
+MISMATCH_SIGMA = 0.01  # 1 % relative capacitor mismatch (σ)
+MISMATCH_SEED = 42  # Fixed seed for reproducibility
 
 RESULTS_DIR = "results"
 os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -42,6 +43,7 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 # ---------------------------------------------------------------------------
 # Helper: generate sinusoidal digital code sequence
 # ---------------------------------------------------------------------------
+
 
 def make_sine_codes(n_fft: int, m_cycles: int) -> np.ndarray:
     """
@@ -59,17 +61,20 @@ def make_sine_codes(n_fft: int, m_cycles: int) -> np.ndarray:
     codes = np.clip(codes, 0, 255)
     return codes
 
+
 # ---------------------------------------------------------------------------
 # Part a) Ideal DAC — sinusoidal input, FFT + THD/SNDR
 # ---------------------------------------------------------------------------
+
 
 def part_a(dac_ideal: CDAC8bit, codes: np.ndarray) -> dict:
     """Analyse ideal DAC with sinusoidal input."""
     vout = dac_ideal.convert(codes)
 
-    result = compute_thd_sndr(vout, VREF, fin_bin=M_CYCLES,
-                               n_harmonics=N_HARMONICS, window=False)
-    spec = result['spectrum']
+    result = compute_thd_sndr(
+        vout, VREF, fin_bin=M_CYCLES, n_harmonics=N_HARMONICS, window=False
+    )
+    spec = result["spectrum"]
 
     print("=" * 60)
     print("Part a)  Ideal 8-bit CDAC — sinusoidal input")
@@ -82,11 +87,16 @@ def part_a(dac_ideal: CDAC8bit, codes: np.ndarray) -> dict:
 
     # Plot
     fig, ax = plt.subplots(figsize=(9, 4))
-    ax.plot(spec['freqs'], spec['magnitude_dbfs'], lw=0.7, color='steelblue')
-    ax.axvline(M_CYCLES / N_FFT, color='tomato', lw=0.8, ls='--',
-               label=f'f_in = {M_CYCLES}/{N_FFT}')
-    for hb in result['harmonic_bins']:
-        ax.axvline(hb / N_FFT, color='orange', lw=0.6, ls=':')
+    ax.plot(spec["freqs"], spec["magnitude_dbfs"], lw=0.7, color="steelblue")
+    ax.axvline(
+        M_CYCLES / N_FFT,
+        color="tomato",
+        lw=0.8,
+        ls="--",
+        label=f"f_in = {M_CYCLES}/{N_FFT}",
+    )
+    for hb in result["harmonic_bins"]:
+        ax.axvline(hb / N_FFT, color="orange", lw=0.6, ls=":")
 
     ax.set_xlim(0, 0.5)
     ax.set_ylim(-100, 10)
@@ -98,7 +108,7 @@ def part_a(dac_ideal: CDAC8bit, codes: np.ndarray) -> dict:
         f"ENOB = {result['enob']:.2f} bits"
     )
     ax.legend(fontsize=8)
-    ax.grid(True, which='both', lw=0.3)
+    ax.grid(True, which="both", lw=0.3)
     fig.tight_layout()
     path = os.path.join(RESULTS_DIR, "part_a_fft_spectrum.svg")
     fig.savefig(path)
@@ -107,21 +117,26 @@ def part_a(dac_ideal: CDAC8bit, codes: np.ndarray) -> dict:
 
     return result
 
+
 # ---------------------------------------------------------------------------
 # Part b) Mismatched DAC — sinusoidal input, FFT + THD/SNDR
 # ---------------------------------------------------------------------------
+
 
 def part_b(dac_mismatch: CDAC8bit, codes: np.ndarray) -> dict:
     """Analyse mismatched DAC with sinusoidal input and compare to ideal."""
     vout = dac_mismatch.convert(codes)
 
-    result = compute_thd_sndr(vout, VREF, fin_bin=M_CYCLES,
-                               n_harmonics=N_HARMONICS, window=False)
-    spec = result['spectrum']
+    result = compute_thd_sndr(
+        vout, VREF, fin_bin=M_CYCLES, n_harmonics=N_HARMONICS, window=False
+    )
+    spec = result["spectrum"]
 
     print()
     print("=" * 60)
-    print(f"Part b)  Mismatched CDAC (σ = {MISMATCH_SIGMA*100:.1f} %) — sinusoidal input")
+    print(
+        f"Part b)  Mismatched CDAC (σ = {MISMATCH_SIGMA*100:.1f} %) — sinusoidal input"
+    )
     print("=" * 60)
     print(f"  Fundamental bin  : {M_CYCLES}")
     print(f"  THD              : {result['thd_db']:.2f} dB")
@@ -131,11 +146,16 @@ def part_b(dac_mismatch: CDAC8bit, codes: np.ndarray) -> dict:
 
     # Plot
     fig, ax = plt.subplots(figsize=(9, 4))
-    ax.plot(spec['freqs'], spec['magnitude_dbfs'], lw=0.7, color='darkorange')
-    ax.axvline(M_CYCLES / N_FFT, color='tomato', lw=0.8, ls='--',
-               label=f'f_in = {M_CYCLES}/{N_FFT}')
-    for hb in result['harmonic_bins']:
-        ax.axvline(hb / N_FFT, color='purple', lw=0.6, ls=':')
+    ax.plot(spec["freqs"], spec["magnitude_dbfs"], lw=0.7, color="darkorange")
+    ax.axvline(
+        M_CYCLES / N_FFT,
+        color="tomato",
+        lw=0.8,
+        ls="--",
+        label=f"f_in = {M_CYCLES}/{N_FFT}",
+    )
+    for hb in result["harmonic_bins"]:
+        ax.axvline(hb / N_FFT, color="purple", lw=0.6, ls=":")
 
     ax.set_xlim(0, 0.5)
     ax.set_ylim(-100, 10)
@@ -148,7 +168,7 @@ def part_b(dac_mismatch: CDAC8bit, codes: np.ndarray) -> dict:
         f"ENOB = {result['enob']:.2f} bits"
     )
     ax.legend(fontsize=8)
-    ax.grid(True, which='both', lw=0.3)
+    ax.grid(True, which="both", lw=0.3)
     fig.tight_layout()
     path = os.path.join(RESULTS_DIR, "part_b_fft_spectrum_mismatch.svg")
     fig.savefig(path)
@@ -168,26 +188,41 @@ def part_b_overlay(result_ideal: dict, result_mismatch: dict) -> None:
     result_mismatch : dict
         Return value of :func:`part_b` (mismatched DAC sinusoidal result).
     """
-    spec_ideal    = result_ideal['spectrum']
-    spec_mismatch = result_mismatch['spectrum']
+    spec_ideal = result_ideal["spectrum"]
+    spec_mismatch = result_mismatch["spectrum"]
 
     fig, ax = plt.subplots(figsize=(9, 4))
 
-    ax.plot(spec_mismatch['freqs'], spec_mismatch['magnitude_dbfs'],
-            lw=0.8, color='darkorange', alpha=0.85,
-            label=f"Mismatch (σ={MISMATCH_SIGMA*100:.1f} %) — SNDR {result_mismatch['sndr_db']:.1f} dB, ENOB {result_mismatch['enob']:.2f}")
-    ax.plot(spec_ideal['freqs'], spec_ideal['magnitude_dbfs'],
-            lw=0.8, color='steelblue', alpha=0.85,
-            label=f"Ideal — SNDR {result_ideal['sndr_db']:.1f} dB, ENOB {result_ideal['enob']:.2f}")
-    ax.axvline(M_CYCLES / N_FFT, color='tomato', lw=0.8, ls='--',
-               label=f'f_in = {M_CYCLES}/{N_FFT}')
+    ax.plot(
+        spec_mismatch["freqs"],
+        spec_mismatch["magnitude_dbfs"],
+        lw=0.8,
+        color="darkorange",
+        alpha=0.85,
+        label=f"Mismatch (σ={MISMATCH_SIGMA*100:.1f} %) — SNDR {result_mismatch['sndr_db']:.1f} dB, ENOB {result_mismatch['enob']:.2f}",
+    )
+    ax.plot(
+        spec_ideal["freqs"],
+        spec_ideal["magnitude_dbfs"],
+        lw=0.8,
+        color="steelblue",
+        alpha=0.85,
+        label=f"Ideal — SNDR {result_ideal['sndr_db']:.1f} dB, ENOB {result_ideal['enob']:.2f}",
+    )
+    ax.axvline(
+        M_CYCLES / N_FFT,
+        color="tomato",
+        lw=0.8,
+        ls="--",
+        label=f"f_in = {M_CYCLES}/{N_FFT}",
+    )
 
     ax.set_xlim(0, 0.5)
     ax.set_ylim(-100, 10)
     ax.set_xlabel("Normalised frequency  (× f_s)")
     ax.set_ylabel("Amplitude (dBFS)")
     ax.legend(fontsize=8)
-    ax.grid(True, which='both', lw=0.3)
+    ax.grid(True, which="both", lw=0.3)
     fig.tight_layout()
 
     path = os.path.join(RESULTS_DIR, "part_b_overlay.svg")
@@ -195,11 +230,12 @@ def part_b_overlay(result_ideal: dict, result_mismatch: dict) -> None:
     plt.close(fig)
     print(f"  → Saved: {path}")
 
+
 # ---------------------------------------------------------------------------
 # Part c) Ramp input — VTC + INL/DNL (works for any DAC instance)
 # ---------------------------------------------------------------------------
 
-_VTC_ZOOM_LO = 140   # first code shown in the VTC inset
+_VTC_ZOOM_LO = 140  # first code shown in the VTC inset
 _VTC_ZOOM_HI = 150  # last  code shown in the VTC inset (inclusive)
 
 
@@ -302,11 +338,11 @@ def part_c(dac: CDAC8bit, label: str, filename: str) -> dict:
         ``'codes'``, ``'dnl'``, ``'inl'``, ``'dnl_max'``, ``'inl_max'``,
         ``'lsb_ideal'``, ``'vtc'``.
     """
-    codes_ramp = np.arange(CDAC8bit.N_CODES)          # 0 … 255
+    codes_ramp = np.arange(CDAC8bit.N_CODES)  # 0 … 255
     vout_ramp = dac.convert(codes_ramp)
 
     result = compute_inl_dnl(vout_ramp, VREF)
-    lsb = result['lsb_ideal']
+    lsb = result["lsb_ideal"]
 
     print()
     print("=" * 60)
@@ -331,26 +367,49 @@ def part_c_plot(result_ideal: dict, result_mismatch: dict) -> None:
     result_mismatch : dict
         Return value of :func:`part_c` for the mismatched DAC (same keys).
     """
-    codes = result_ideal['codes']
-    lsb   = result_ideal['lsb_ideal']
+    codes = result_ideal["codes"]
+    lsb = result_ideal["lsb_ideal"]
     ideal_vout = codes * lsb
 
     # VTC
     fig, ax_vtc = plt.subplots(figsize=(9, 4))
-    ax_vtc.step(codes, result_ideal['vtc'] * 1e3, where='post',
-                color='steelblue', lw=1.0, alpha=0.85, label='Ideal CDAC output')
-    ax_vtc.step(codes, result_mismatch['vtc'] * 1e3, where='post',
-                color='darkorange', lw=1.0, alpha=0.85,
-                label=f'Mismatched CDAC  (σ={MISMATCH_SIGMA*100:.1f} %)')
-    ax_vtc.plot(codes, ideal_vout * 1e3, color='tomato', lw=0.8,
-                ls='--', label='Ideal reference line')
+    ax_vtc.step(
+        codes,
+        result_ideal["vtc"] * 1e3,
+        where="post",
+        color="steelblue",
+        lw=1.0,
+        alpha=0.85,
+        label="Ideal CDAC output",
+    )
+    ax_vtc.step(
+        codes,
+        result_mismatch["vtc"] * 1e3,
+        where="post",
+        color="darkorange",
+        lw=1.0,
+        alpha=0.85,
+        label=f"Mismatched CDAC  (σ={MISMATCH_SIGMA*100:.1f} %)",
+    )
+    ax_vtc.plot(
+        codes,
+        ideal_vout * 1e3,
+        color="tomato",
+        lw=0.8,
+        ls="--",
+        label="Ideal reference line",
+    )
     ax_vtc.set_xlabel("Digital code")
     ax_vtc.set_ylabel("Output voltage (mV)")
     ax_vtc.legend(fontsize=8)
     ax_vtc.grid(True, lw=0.3)
-    _add_vtc_inset(ax_vtc, codes, lsb,
-                   (result_ideal['vtc'] * 1e3,    'steelblue',  1.0, 0.85, 'Ideal'),
-                   (result_mismatch['vtc'] * 1e3, 'darkorange', 1.0, 0.85, 'Mismatch'))
+    _add_vtc_inset(
+        ax_vtc,
+        codes,
+        lsb,
+        (result_ideal["vtc"] * 1e3, "darkorange", 1.0, 0.85, "Ideal"),
+        (result_mismatch["vtc"] * 1e3, "steelblue", 1.0, 0.85, "Mismatch"),
+    )
 
     fig.tight_layout()
     path = os.path.join(RESULTS_DIR, "part_c_vtc.svg")
@@ -360,12 +419,18 @@ def part_c_plot(result_ideal: dict, result_mismatch: dict) -> None:
 
     # DNL
     fig, ax_dnl = plt.subplots(figsize=(9, 4))
-    ax_dnl.step(codes[:-1], result_mismatch['dnl'], where='post',
-                color='darkorange', lw=0.8, alpha=0.85,
-                label=f"Mismatch (peak {result_mismatch['dnl_max']:.4f} LSB)")
-    ax_dnl.axhline(0, color='k', lw=0.5)
-    ax_dnl.axhline(1, color='tomato', lw=0.6, ls='--', label='+1 LSB')
-    ax_dnl.axhline(-1, color='tomato', lw=0.6, ls='--', label='−1 LSB')
+    ax_dnl.step(
+        codes[:-1],
+        result_mismatch["dnl"],
+        where="post",
+        color="steelblue",
+        lw=0.8,
+        alpha=0.85,
+        label=f"Mismatch (peak {result_mismatch['dnl_max']:.4f} LSB)",
+    )
+    ax_dnl.axhline(0, color="k", lw=0.5)
+    ax_dnl.axhline(1, color="tomato", lw=0.6, ls="--", label="+1 LSB")
+    ax_dnl.axhline(-1, color="tomato", lw=0.6, ls="--", label="−1 LSB")
     ax_dnl.set_xlabel("Digital code")
     ax_dnl.set_ylabel("DNL (LSB)")
     ax_dnl.legend(fontsize=8)
@@ -379,11 +444,17 @@ def part_c_plot(result_ideal: dict, result_mismatch: dict) -> None:
 
     # INL
     fig, ax_inl = plt.subplots(figsize=(9, 4))
-    ax_inl.plot(codes, result_mismatch['inl'], color='darkorange', lw=0.8, alpha=0.85,
-                label=f"Mismatch (peak {result_mismatch['inl_max']:.4f} LSB)")
-    ax_inl.axhline(0, color='k', lw=0.5)
-    ax_inl.axhline(0.5, color='tomato', lw=0.6, ls='--', label='±0.5 LSB')
-    ax_inl.axhline(-0.5, color='tomato', lw=0.6, ls='--')
+    ax_inl.plot(
+        codes,
+        result_mismatch["inl"],
+        color="steelblue",
+        lw=0.8,
+        alpha=0.85,
+        label=f"Mismatch (peak {result_mismatch['inl_max']:.4f} LSB)",
+    )
+    ax_inl.axhline(0, color="k", lw=0.5)
+    ax_inl.axhline(0.5, color="tomato", lw=0.6, ls="--", label="±0.5 LSB")
+    ax_inl.axhline(-0.5, color="tomato", lw=0.6, ls="--")
     ax_inl.set_xlabel("Digital code")
     ax_inl.set_ylabel("INL (LSB)")
     ax_inl.legend(fontsize=8)
@@ -395,9 +466,11 @@ def part_c_plot(result_ideal: dict, result_mismatch: dict) -> None:
     plt.close(fig)
     print(f"  → Saved: {path}")
 
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     print(f"\n{'='*60}")
@@ -410,9 +483,10 @@ def main() -> None:
     print()
 
     # Build DAC instances
-    dac_ideal    = CDAC8bit(vref=VREF, mismatch_sigma=0.0)
-    dac_mismatch = CDAC8bit(vref=VREF, mismatch_sigma=MISMATCH_SIGMA,
-                             seed=MISMATCH_SEED)
+    dac_ideal = CDAC8bit(vref=VREF, mismatch_sigma=0.0)
+    dac_mismatch = CDAC8bit(
+        vref=VREF, mismatch_sigma=MISMATCH_SIGMA, seed=MISMATCH_SEED
+    )
 
     # Sinusoidal digital code sequence (shared by parts a & b)
     codes_sine = make_sine_codes(N_FFT, M_CYCLES)
@@ -424,7 +498,9 @@ def main() -> None:
     print()
     part_b_overlay(result_a, result_b)
 
-    result_c_ideal = part_c(dac_ideal, "Ideal 8-bit CDAC", "part_c_ideal_vtc_inl_dnl.svg")
+    result_c_ideal = part_c(
+        dac_ideal, "Ideal 8-bit CDAC", "part_c_ideal_vtc_inl_dnl.svg"
+    )
     result_c_mismatch = part_c(
         dac_mismatch,
         f"Mismatched CDAC  (σ = {MISMATCH_SIGMA*100:.1f} %)",
