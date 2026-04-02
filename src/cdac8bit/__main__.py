@@ -93,7 +93,6 @@ def part_a(dac_ideal: CDAC8bit, codes: np.ndarray) -> dict:
     ax.set_xlabel("Normalised frequency  (× f_s)")
     ax.set_ylabel("Amplitude (dBFS)")
     ax.set_title(
-        f"Part a)  Ideal CDAC — FFT Spectrum\n"
         f"THD = {result['thd_db']:.1f} dB   |   "
         f"SNDR = {result['sndr_db']:.1f} dB   |   "
         f"ENOB = {result['enob']:.2f} bits"
@@ -143,7 +142,7 @@ def part_b(dac_mismatch: CDAC8bit, codes: np.ndarray) -> dict:
     ax.set_xlabel("Normalised frequency  (× f_s)")
     ax.set_ylabel("Amplitude (dBFS)")
     ax.set_title(
-        f"Part b)  Mismatched CDAC (σ = {MISMATCH_SIGMA*100:.1f} %) — FFT Spectrum\n"
+        f"CDAC Mismatch σ = {MISMATCH_SIGMA*100:.1f} %   |   "
         f"THD = {result['thd_db']:.1f} dB   |   "
         f"SNDR = {result['sndr_db']:.1f} dB   |   "
         f"ENOB = {result['enob']:.2f} bits"
@@ -172,7 +171,7 @@ def part_b_overlay(result_ideal: dict, result_mismatch: dict) -> None:
     spec_ideal    = result_ideal['spectrum']
     spec_mismatch = result_mismatch['spectrum']
 
-    fig, ax = plt.subplots(figsize=(10, 4))
+    fig, ax = plt.subplots(figsize=(9, 4))
 
     ax.plot(spec_mismatch['freqs'], spec_mismatch['magnitude_dbfs'],
             lw=0.8, color='darkorange', alpha=0.85,
@@ -187,7 +186,6 @@ def part_b_overlay(result_ideal: dict, result_mismatch: dict) -> None:
     ax.set_ylim(-100, 10)
     ax.set_xlabel("Normalised frequency  (× f_s)")
     ax.set_ylabel("Amplitude (dBFS)")
-    ax.set_title("Part b)  FFT Spectrum Overlay — Ideal vs Mismatched CDAC")
     ax.legend(fontsize=8)
     ax.grid(True, which='both', lw=0.3)
     fig.tight_layout()
@@ -318,57 +316,10 @@ def part_c(dac: CDAC8bit, label: str, filename: str) -> dict:
     print(f"  Peak |DNL|       : {result['dnl_max']:.4f} LSB")
     print(f"  Peak |INL|       : {result['inl_max']:.4f} LSB")
 
-    # --- Voltage Transfer Curve (VTC) ---
-    fig, (ax_vtc, ax_dnl, ax_inl) = plt.subplots(
-        3, 1, figsize=(10, 9), constrained_layout=True
-    )
-
-    # VTC
-    ideal_vout = codes_ramp * lsb   # ideal staircase
-    ax_vtc.step(codes_ramp, vout_ramp * 1e3, where='post',
-                color='steelblue', lw=1.0, label='CDAC output')
-    ax_vtc.plot(codes_ramp, ideal_vout * 1e3, color='tomato', lw=0.8,
-                ls='--', label='Ideal line')
-    ax_vtc.set_xlabel("Digital code")
-    ax_vtc.set_ylabel("Output voltage (mV)")
-    ax_vtc.set_title("Voltage Transfer Curve (VTC)")
-    ax_vtc.legend(fontsize=8)
-    ax_vtc.grid(True, lw=0.3)
-    _add_vtc_inset(ax_vtc, codes_ramp, lsb,
-                   (vout_ramp * 1e3, 'steelblue', 1.0, 1.0, 'CDAC output'))
-
-    # DNL
-    ax_dnl.step(codes_ramp[:-1], result['dnl'], where='post',
-                color='darkorange', lw=0.8)
-    ax_dnl.axhline(0, color='k', lw=0.5)
-    ax_dnl.axhline(1, color='tomato', lw=0.6, ls='--', label='+1 LSB')
-    ax_dnl.axhline(-1, color='tomato', lw=0.6, ls='--', label='−1 LSB')
-    ax_dnl.set_xlabel("Digital code")
-    ax_dnl.set_ylabel("DNL (LSB)")
-    ax_dnl.set_title(f"Differential Non-Linearity (DNL)   peak = {result['dnl_max']:.4f} LSB")
-    ax_dnl.legend(fontsize=8)
-    ax_dnl.grid(True, lw=0.3)
-
-    # INL
-    ax_inl.plot(codes_ramp, result['inl'], color='purple', lw=0.8)
-    ax_inl.axhline(0, color='k', lw=0.5)
-    ax_inl.axhline(0.5, color='tomato', lw=0.6, ls='--', label='±0.5 LSB')
-    ax_inl.axhline(-0.5, color='tomato', lw=0.6, ls='--')
-    ax_inl.set_xlabel("Digital code")
-    ax_inl.set_ylabel("INL (LSB)")
-    ax_inl.set_title(f"Integral Non-Linearity (INL)   peak = {result['inl_max']:.4f} LSB")
-    ax_inl.legend(fontsize=8)
-    ax_inl.grid(True, lw=0.3)
-
-    path = os.path.join(RESULTS_DIR, filename)
-    fig.savefig(path)
-    plt.close(fig)
-    print(f"  → Saved: {path}")
-
     return result
 
 
-def part_c_overlay(result_ideal: dict, result_mismatch: dict) -> None:
+def part_c_plot(result_ideal: dict, result_mismatch: dict) -> None:
     """Overlay ideal and mismatched VTC / DNL / INL curves on the same axes.
 
     Parameters
@@ -384,11 +335,8 @@ def part_c_overlay(result_ideal: dict, result_mismatch: dict) -> None:
     lsb   = result_ideal['lsb_ideal']
     ideal_vout = codes * lsb
 
-    fig, (ax_vtc, ax_dnl, ax_inl) = plt.subplots(
-        3, 1, figsize=(10, 9), constrained_layout=True
-    )
-
     # VTC
+    fig, ax_vtc = plt.subplots(figsize=(9, 4))
     ax_vtc.step(codes, result_ideal['vtc'] * 1e3, where='post',
                 color='steelblue', lw=1.0, alpha=0.85, label='Ideal CDAC output')
     ax_vtc.step(codes, result_mismatch['vtc'] * 1e3, where='post',
@@ -405,10 +353,13 @@ def part_c_overlay(result_ideal: dict, result_mismatch: dict) -> None:
                    (result_ideal['vtc'] * 1e3,    'steelblue',  1.0, 0.85, 'Ideal'),
                    (result_mismatch['vtc'] * 1e3, 'darkorange', 1.0, 0.85, 'Mismatch'))
 
+    path = os.path.join(RESULTS_DIR, "part_c_vtc.svg")
+    fig.savefig(path)
+    plt.close(fig)
+    print(f"  → Saved: {path}")
+
     # DNL
-    ax_dnl.step(codes[:-1], result_ideal['dnl'], where='post',
-                color='steelblue', lw=0.8, alpha=0.85,
-                label=f"Ideal   (peak {result_ideal['dnl_max']:.4f} LSB)")
+    fig, ax_dnl = plt.subplots(figsize=(9, 4))
     ax_dnl.step(codes[:-1], result_mismatch['dnl'], where='post',
                 color='darkorange', lw=0.8, alpha=0.85,
                 label=f"Mismatch (peak {result_mismatch['dnl_max']:.4f} LSB)")
@@ -417,13 +368,16 @@ def part_c_overlay(result_ideal: dict, result_mismatch: dict) -> None:
     ax_dnl.axhline(-1, color='tomato', lw=0.6, ls='--', label='−1 LSB')
     ax_dnl.set_xlabel("Digital code")
     ax_dnl.set_ylabel("DNL (LSB)")
-    ax_dnl.set_title("Differential Non-Linearity (DNL) — Overlay")
     ax_dnl.legend(fontsize=8)
     ax_dnl.grid(True, lw=0.3)
 
+    path = os.path.join(RESULTS_DIR, "part_c_dnl.svg")
+    fig.savefig(path)
+    plt.close(fig)
+    print(f"  → Saved: {path}")
+
     # INL
-    ax_inl.plot(codes, result_ideal['inl'], color='steelblue', lw=0.8, alpha=0.85,
-                label=f"Ideal   (peak {result_ideal['inl_max']:.4f} LSB)")
+    fig, ax_inl = plt.subplots(figsize=(9, 4))
     ax_inl.plot(codes, result_mismatch['inl'], color='darkorange', lw=0.8, alpha=0.85,
                 label=f"Mismatch (peak {result_mismatch['inl_max']:.4f} LSB)")
     ax_inl.axhline(0, color='k', lw=0.5)
@@ -435,7 +389,7 @@ def part_c_overlay(result_ideal: dict, result_mismatch: dict) -> None:
     ax_inl.legend(fontsize=8)
     ax_inl.grid(True, lw=0.3)
 
-    path = os.path.join(RESULTS_DIR, "part_c_overlay.svg")
+    path = os.path.join(RESULTS_DIR, "part_c_inl.svg")
     fig.savefig(path)
     plt.close(fig)
     print(f"  → Saved: {path}")
@@ -476,7 +430,7 @@ def main() -> None:
         "part_c_mismatch_vtc_inl_dnl.svg",
     )
     print()
-    part_c_overlay(result_c_ideal, result_c_mismatch)
+    part_c_plot(result_c_ideal, result_c_mismatch)
 
     print()
     print("All results saved to:", os.path.abspath(RESULTS_DIR))
